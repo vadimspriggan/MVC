@@ -34,4 +34,4 @@ Magic Video Converter | One-Click Video Converter
 - Upscale и чистка (Hugging Face AI).
 - GUI (1 кнопка "делай хорошо").
 
-Лицензия: MIT
+Лицензия: GNU GPLv3

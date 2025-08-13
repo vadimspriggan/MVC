@@ -1,7 +1,19 @@
 import argparse
 import os
 import sys
+import shutil
 from concurrent.futures import ThreadPoolExecutor
+
+# Clear Python cache
+def clear_cache():
+    cache_dirs = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), '__pycache__'),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'modules', '__pycache__')
+    ]
+    for cache_dir in cache_dirs:
+        if os.path.exists(cache_dir):
+            shutil.rmtree(cache_dir, ignore_errors=True)
+            print(f"Cleared cache: {cache_dir}")
 
 # Ensure parent directory (containing modules) is in sys.path before any imports
 program_dir = os.path.dirname(os.path.abspath(__file__))
@@ -24,6 +36,9 @@ for item in os.listdir(modules_dir):
 
 sys.path.insert(0, program_dir)
 print(f"sys.path after: {sys.path}")
+
+# Clear cache before imports
+clear_cache()
 
 # Import modules after setting sys.path
 try:
@@ -57,7 +72,6 @@ def main(args):
     with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
         executor.map(lambda v: process_video(v, args.duration, args.codec, temp_dir, converted_dir), videos)
 
-    import shutil
     shutil.rmtree(temp_dir)
     os.chdir(original_dir)
 

@@ -2,29 +2,30 @@
 
 Automates video conversion by optimizing CRF (Constant Rate Factor) for AV1 encoding, ensuring quality (SSIM >= 0.95) and size (<= original). Goal: "One button to make it great" for large video archives.
 
+# Magic Video Converter (MVC)
+
+Magic Video Converter (MVC) is a Python-based tool for converting videos to AV1 format using FFmpeg, optimizing for quality (SSIM >= 0.95) and size (≤ original size * 1.05). It supports NVIDIA GPU acceleration (av1_nvenc) with fallback to libsvtav1, two-pass encoding, and preserves all audio tracks and subtitles.
+
 ## Features
-- Scans current directory for videos (.mkv, .mp4, .avi, etc.).
-- Extracts metadata (resolution, bitrate).
-- Cuts 30-second clips, tests CRF (18-30) in AV1.
-- Compares SSIM and size to choose optimal CRF.
-- Converts full videos in parallel (GPU-accelerated with av1_nvenc).
-- Future: AI upscale and noise reduction for VHS-quality videos.
+- Converts videos to `.mp4` with AV1 codec (`av1_nvenc` or `libsvtav1`).
+- Optimizes CRF (Constant Rate Factor) based on SSIM and file size.
+- Supports two-pass encoding for better quality.
+- Preserves all audio tracks and subtitles from the source.
+- Skips already optimized `.mp4` files with AV1 or HEVC codecs.
+- Recursive video scanning by default (optional `--norecursive` flag).
+- Handles Cyrillic filenames and paths.
+
+## Requirements
+- **Python 3.12**: Embedded Python is automatically downloaded and installed.
+- **FFmpeg**: Uses BtbN builds (`ffmpeg-master-latest-win64-gpl.zip`) with `libvmaf` for SSIM, `av1_nvenc`, and `libsvtav1`.
+- **Windows**: Tested on Windows (x86_64). Linux/Mac support possible with minor adjustments.
+- **NVIDIA GPU**: Optional for `av1_nvenc` acceleration.
 
 ## Installation
-1. Clone or download this repository: `git clone https://github.com/your-username/MVC.git`
-2. Windows: Run `install.ps1` in PowerShell.
-3. Linux/Mac: Run `install.sh` in bash.
-4. The script downloads portable Python and FFmpeg, creating a self-contained folder.
-
-## Usage
-- Windows: `run.bat --all` or `run.bat --input "./video.mkv" --duration 30 --codec av1_nvenc`
-- Linux/Mac: `./run.sh --all` or `./run.sh --input "./video.mkv" --duration 30 --codec av1_nvenc`
-
-Parameters:
-- `--input`: Specific video file (default: all videos in current directory).
-- `--duration`: Clip duration for testing (default: 30).
-- `--codec`: Codec (default: av1_nvenc).
-- `--all`: Process all videos in the directory.
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/vadimspriggan/MVC.git
+   cd MVC
 
 ## Output
 - Converted videos in `./converted`.
@@ -35,4 +36,4 @@ Parameters:
 - GUI for "one-button" operation.
 
 ## License
-MIT
+GNU GPL v3

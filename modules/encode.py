@@ -1,6 +1,7 @@
 import subprocess
 import os
 import math
+import glob
 from modules.ssim import calculate_ssim
 from modules.compare import compare_results, find_best_crf
 import sys
@@ -15,11 +16,9 @@ def test_crf(original_clip, clip_duration, codec, temp_dir, original_size_mb, or
     if not os.path.isfile(original_clip):
         raise FileNotFoundError(f"Original clip {original_clip} does not exist")
 
-    # Check if av1_nvenc is supported, fallback to libsvtav1 if not
     effective_codec = codec
     if codec == "av1_nvenc":
         try:
-            # Test encode a short clip in YUV420P to check av1_nvenc support
             test_command = [ffmpeg_path, "-f", "lavfi", "-i", "testsrc=duration=1:size=320x240:rate=30", "-pix_fmt", "yuv420p", "-c:v", "av1_nvenc", "-f", "null", "-"]
             process = subprocess.run(test_command, capture_output=True, text=True, check=True)
         except subprocess.CalledProcessError as e:
@@ -50,20 +49,15 @@ def test_crf(original_clip, clip_duration, codec, temp_dir, original_size_mb, or
             continue
 
         test_clip = os.path.join(temp_dir, f"test_clip_crf{mid}.mp4")
-        log_file = os.path.join(os.getcwd(), f"mvc_logs_{os.path.splitext(os.path.basename(original_clip))[0]}_encode_crf{mid}.log")
+        passlog_prefix = os.path.join(temp_dir, f"ffmpeg2pass_crf{mid}")
         
-        # Two-pass encoding
-        pass1_command = [ffmpeg_path] + hw_accel_args + ["-v", "error", "-fflags", "+genpts", "-i", original_clip, "-c:v", effective_codec, "-vsync", "1"] + preset_args + [crf_param, str(mid), "-pass", "1", "-an", "-sn", "-f", "null", os.devnull]
-        pass2_command = [ffmpeg_path] + hw_accel_args + ["-v", "error", "-fflags", "+genpts", "-i", original_clip, "-c:v", effective_codec, "-vsync", "1"] + preset_args + [crf_param, str(mid), "-pass", "2", "-an", "-sn", test_clip, "-y"]
+        pass1_command = [ffmpeg_path] + hw_accel_args + ["-v", "error", "-fflags", "+genpts", "-i", original_clip, "-c:v", effective_codec, "-vsync", "1"] + preset_args + [crf_param, str(mid), "-pass", "1", "-passlogfile", passlog_prefix, "-an", "-sn", "-f", "null", os.devnull]
+        pass2_command = [ffmpeg_path] + hw_accel_args + ["-v", "error", "-fflags", "+genpts", "-i", original_clip, "-c:v", effective_codec, "-vsync", "1"] + preset_args + [crf_param, str(mid), "-pass", "2", "-passlogfile", passlog_prefix, "-an", "-sn", test_clip, "-y"]
         
         print(f"Running ffmpeg two-pass command (pass 1): {' '.join(pass1_command)}")
         try:
             process = subprocess.run(pass1_command, capture_output=True, text=True, check=True)
-            with open(log_file, 'w', encoding='utf-8') as log:
-                log.write(f"Pass 1 stdout: {process.stdout}\nPass 1 stderr: {process.stderr}")
         except subprocess.CalledProcessError as e:
-            with open(log_file, 'w', encoding='utf-8') as log:
-                log.write(f"Pass 1 failed: stdout: {e.stdout}\nstderr: {e.stderr}")
             print(f"WARNING: Pass 1 failed for CRF {mid}: {e.stderr}")
             results[str(mid)] = {'PredictedSize': 0, 'SSIM': 0.0}
             high = mid - 1
@@ -72,15 +66,18 @@ def test_crf(original_clip, clip_duration, codec, temp_dir, original_size_mb, or
         print(f"Running ffmpeg two-pass command (pass 2): {' '.join(pass2_command)}")
         try:
             process = subprocess.run(pass2_command, capture_output=True, text=True, check=True)
-            with open(log_file, 'a', encoding='utf-8') as log:
-                log.write(f"Pass 2 stdout: {process.stdout}\nPass 2 stderr: {process.stderr}")
         except subprocess.CalledProcessError as e:
-            with open(log_file, 'a', encoding='utf-8') as log:
-                log.write(f"Pass 2 failed: stdout: {e.stdout}\nstderr: {e.stderr}")
             print(f"WARNING: Pass 2 failed for CRF {mid}: {e.stderr}")
             results[str(mid)] = {'PredictedSize': 0, 'SSIM': 0.0}
             high = mid - 1
             continue
+        finally:
+            # Clean up ffmpeg2pass logs
+            for log_file in glob.glob(f"{passlog_prefix}*.log"):
+                try:
+                    os.remove(log_file)
+                except OSError:
+                    pass
 
         if not os.path.exists(test_clip) or os.path.getsize(test_clip) == 0:
             print(f"WARNING: Клип для CRF {mid} не создан. Пропускаю.")

@@ -7,16 +7,16 @@ def get_metadata(video):
     ffmpeg_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'ffmpeg')
     ffprobe_name = 'ffprobe.exe' if sys.platform.startswith('win') else 'ffprobe'
     ffprobe_path = os.path.join(ffmpeg_dir, ffprobe_name)
-    log_file = os.path.join(os.getcwd(), f"mvc_logs_{os.path.splitext(os.path.basename(video))[0]}_metadata.log")
+    #log_file = os.path.join(os.getcwd(), f"mvc_logs_{os.path.splitext(os.path.basename(video))[0]}_metadata.log")
     
     if not os.path.isfile(ffprobe_path):
-        with open(log_file, 'w', encoding='utf-8') as log:
-            log.write(f"Error: ffprobe not found at {ffprobe_path}")
+        #with open(log_file, 'w', encoding='utf-8') as log:
+        #    log.write(f"Error: ffprobe not found at {ffprobe_path}")
         raise FileNotFoundError(f"ffprobe not found at {ffprobe_path}")
 
     if not os.path.isfile(video):
-        with open(log_file, 'w', encoding='utf-8') as log:
-            log.write(f"Error: Video file {video} does not exist")
+        #with open(log_file, 'w', encoding='utf-8') as log:
+        #    log.write(f"Error: Video file {video} does not exist")
         raise FileNotFoundError(f"Video file {video} does not exist")
 
     video_path = os.path.abspath(video)
@@ -25,21 +25,21 @@ def get_metadata(video):
 
     try:
         process = subprocess.run(probe_command, capture_output=True, text=True, check=True)
-        with open(log_file, 'w', encoding='utf-8') as log:
-            log.write(f"stdout: {process.stdout}\nstderr: {process.stderr}")
+        #with open(log_file, 'w', encoding='utf-8') as log:
+        #    log.write(f"stdout: {process.stdout}\nstderr: {process.stderr}")
         probe = json.loads(process.stdout)
     except subprocess.CalledProcessError as e:
-        with open(log_file, 'w', encoding='utf-8') as log:
-            log.write(f"ffprobe failed: stdout: {e.stdout}\nstderr: {e.stderr}")
+        #with open(log_file, 'w', encoding='utf-8') as log:
+        #    log.write(f"ffprobe failed: stdout: {e.stdout}\nstderr: {e.stderr}")
         raise RuntimeError(f"ffprobe failed for {video}: {e.stderr}")
     except json.JSONDecodeError as e:
-        with open(log_file, 'w', encoding='utf-8') as log:
-            log.write(f"JSON decode error: {e}\nstdout: {process.stdout}\nstderr: {process.stderr}")
+        #with open(log_file, 'w', encoding='utf-8') as log:
+        #    log.write(f"JSON decode error: {e}\nstdout: {process.stdout}\nstderr: {process.stderr}")
         raise RuntimeError(f"Failed to parse ffprobe output for {video}: {e}")
 
     if not probe.get('streams'):
-        with open(log_file, 'a', encoding='utf-8') as log:
-            log.write("Error: No video streams found in file")
+        #with open(log_file, 'a', encoding='utf-8') as log:
+        #    log.write("Error: No video streams found in file")
         raise RuntimeError(f"No video streams found in {video}")
 
     video_stream = probe['streams'][0]

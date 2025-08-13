@@ -1,8 +1,6 @@
-# MVC - Magic Video Converter
+# Magic Video Converter (MVC) ![Project Cover](./MVC.png)
 
 Automates video conversion by optimizing CRF (Constant Rate Factor) for AV1 encoding, ensuring quality (SSIM >= 0.95) and size (<= original). Goal: "One button to make it great" for large video archives.
-
-# Magic Video Converter (MVC)
 
 Magic Video Converter (MVC) is a Python-based tool for converting videos to AV1 format using FFmpeg, optimizing for quality (SSIM >= 0.95) and size (≤ original size * 1.05). It supports NVIDIA GPU acceleration (av1_nvenc) with fallback to libsvtav1, two-pass encoding, and preserves all audio tracks and subtitles.
 

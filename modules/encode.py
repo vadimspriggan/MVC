@@ -6,7 +6,7 @@ from modules.ssim import calculate_ssim
 from modules.compare import compare_results, find_best_crf
 import sys
 
-def test_crf(original_clip, clip_duration, codec, temp_dir, original_size_mb, original_duration):
+def test_crf(original_clip, clip_duration, codec, temp_dir, original_size_mb, original_duration, warnings):
     ffmpeg_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'ffmpeg')
     ffmpeg_name = 'ffmpeg.exe' if sys.platform.startswith('win') else 'ffmpeg'
     ffmpeg_path = os.path.join(ffmpeg_dir, ffmpeg_name)
@@ -20,9 +20,10 @@ def test_crf(original_clip, clip_duration, codec, temp_dir, original_size_mb, or
     if codec == "av1_nvenc":
         try:
             test_command = [ffmpeg_path, "-f", "lavfi", "-i", "testsrc=duration=1:size=320x240:rate=30", "-pix_fmt", "yuv420p", "-c:v", "av1_nvenc", "-f", "null", "-"]
-            process = subprocess.run(test_command, capture_output=True, text=True, check=True)
+            process = subprocess.run(test_command, capture_output=True, text=True, encoding='utf-8', check=True)
         except subprocess.CalledProcessError as e:
             print(f"WARNING: av1_nvenc not supported: {e.stderr}. Falling back to libsvtav1")
+            warnings.append(f"av1_nvenc not supported: {e.stderr}")
             effective_codec = "libsvtav1"
 
     if effective_codec == "av1_nvenc":
@@ -48,31 +49,32 @@ def test_crf(original_clip, clip_duration, codec, temp_dir, original_size_mb, or
             low = mid + 1
             continue
 
-        test_clip = os.path.join(temp_dir, f"test_clip_crf{mid}.mp4")
-        passlog_prefix = os.path.join(temp_dir, f"ffmpeg2pass_crf{mid}")
+        test_clip = os.path.join(temp_dir, f"test_clip_crf{mid}_{os.path.splitext(os.path.basename(original_clip))[0]}.mp4")
+        passlog_prefix = os.path.join(temp_dir, f"ffmpeg2pass_crf{mid}_{os.path.splitext(os.path.basename(original_clip))[0]}")
         
         pass1_command = [ffmpeg_path] + hw_accel_args + ["-v", "error", "-fflags", "+genpts", "-i", original_clip, "-c:v", effective_codec, "-vsync", "1"] + preset_args + [crf_param, str(mid), "-pass", "1", "-passlogfile", passlog_prefix, "-an", "-sn", "-f", "null", os.devnull]
         pass2_command = [ffmpeg_path] + hw_accel_args + ["-v", "error", "-fflags", "+genpts", "-i", original_clip, "-c:v", effective_codec, "-vsync", "1"] + preset_args + [crf_param, str(mid), "-pass", "2", "-passlogfile", passlog_prefix, "-an", "-sn", test_clip, "-y"]
         
         print(f"Running ffmpeg two-pass command (pass 1): {' '.join(pass1_command)}")
         try:
-            process = subprocess.run(pass1_command, capture_output=True, text=True, check=True)
+            process = subprocess.run(pass1_command, capture_output=True, text=True, encoding='utf-8', check=True)
         except subprocess.CalledProcessError as e:
             print(f"WARNING: Pass 1 failed for CRF {mid}: {e.stderr}")
+            warnings.append(f"Pass 1 failed for CRF {mid}: {e.stderr}")
             results[str(mid)] = {'PredictedSize': 0, 'SSIM': 0.0}
             high = mid - 1
             continue
 
         print(f"Running ffmpeg two-pass command (pass 2): {' '.join(pass2_command)}")
         try:
-            process = subprocess.run(pass2_command, capture_output=True, text=True, check=True)
+            process = subprocess.run(pass2_command, capture_output=True, text=True, encoding='utf-8', check=True)
         except subprocess.CalledProcessError as e:
             print(f"WARNING: Pass 2 failed for CRF {mid}: {e.stderr}")
+            warnings.append(f"Pass 2 failed for CRF {mid}: {e.stderr}")
             results[str(mid)] = {'PredictedSize': 0, 'SSIM': 0.0}
             high = mid - 1
             continue
         finally:
-            # Clean up ffmpeg2pass logs
             for log_file in glob.glob(f"{passlog_prefix}*.log"):
                 try:
                     os.remove(log_file)
@@ -81,13 +83,14 @@ def test_crf(original_clip, clip_duration, codec, temp_dir, original_size_mb, or
 
         if not os.path.exists(test_clip) or os.path.getsize(test_clip) == 0:
             print(f"WARNING: Клип для CRF {mid} не создан. Пропускаю.")
+            warnings.append(f"Клип для CRF {mid} не создан")
             results[str(mid)] = {'PredictedSize': 0, 'SSIM': 0.0}
             high = mid - 1
             continue
 
         test_size_mb = os.path.getsize(test_clip) / 1048576
         predicted_size_mb = test_size_mb * (original_duration / clip_duration)
-        ssim = calculate_ssim(test_clip, original_clip, temp_dir, mid)
+        ssim = calculate_ssim(test_clip, original_clip, temp_dir, mid, warnings)
 
         print(f"CRF {mid}: clip {test_size_mb:.3f} MB | predicted {predicted_size_mb:.3f} MB | SSIM {ssim:.3f}")
         results[str(mid)] = {'PredictedSize': predicted_size_mb, 'SSIM': ssim}

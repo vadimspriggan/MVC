@@ -14,7 +14,10 @@ def convert_full_video(input_file, output_file, codec, crf, upscale=False):
     if not os.path.isfile(input_file):
         raise FileNotFoundError(f"Input file {input_file} does not exist")
 
+    # Remove 'remuxed_' prefix if present
     base_name = os.path.splitext(os.path.basename(input_file))[0]
+    if base_name.startswith('remuxed_'):
+        base_name = base_name[len('remuxed_'):]
     output_file = os.path.join(os.getcwd(), 'converted', f"{base_name}.mp4")
     passlog_prefix = os.path.join(os.getcwd(), 'temp', f"ffmpeg2pass_convert_{base_name}")
 
@@ -31,8 +34,8 @@ def convert_full_video(input_file, output_file, codec, crf, upscale=False):
         preset_args = ["-preset", "7"]
         crf_param = "-cq"
 
-    pass1_command = [ffmpeg_path] + hw_accel_args + ["-v", "error", "-i", input_file, "-c:v", codec, "-vsync", "1"] + preset_args + [crf_param, str(crf), "-pass", "1", "-passlogfile", passlog_prefix, "-map", "0", "-c:a", "copy", "-c:s", "mov_text", "-f", "mp4", os.devnull]
-    pass2_command = [ffmpeg_path] + hw_accel_args + ["-v", "error", "-i", input_file, "-c:v", codec, "-vsync", "1"] + preset_args + [crf_param, str(crf), "-pass", "2", "-passlogfile", passlog_prefix, "-map", "0", "-c:a", "copy", "-c:s", "mov_text", output_file, "-y"]
+    pass1_command = [ffmpeg_path] + hw_accel_args + ["-v", "error", "-fflags", "+genpts", "-i", input_file, "-c:v", codec, "-vsync", "1"] + preset_args + [crf_param, str(crf), "-pass", "1", "-passlogfile", passlog_prefix, "-map", "0:v:0", "-map", "0:a", "-map", "0:s?", "-c:a", "copy", "-c:s", "mov_text", "-f", "mp4", os.devnull]
+    pass2_command = [ffmpeg_path] + hw_accel_args + ["-v", "error", "-fflags", "+genpts", "-i", input_file, "-c:v", codec, "-vsync", "1"] + preset_args + [crf_param, str(crf), "-pass", "2", "-passlogfile", passlog_prefix, "-map", "0:v:0", "-map", "0:a", "-map", "0:s?", "-c:a", "copy", "-c:s", "mov_text", output_file, "-y"]
     
     if upscale:
         pass1_command += ["-vf", "scale=4k:-1"]
@@ -40,32 +43,31 @@ def convert_full_video(input_file, output_file, codec, crf, upscale=False):
 
     print(f"Running ffmpeg two-pass command (pass 1): {' '.join(pass1_command)}")
     try:
-        process = subprocess.run(pass1_command, capture_output=True, text=True, check=True)
+        process = subprocess.run(pass1_command, capture_output=True, text=True, encoding='utf-8', check=True)
     except subprocess.CalledProcessError as e:
         print(f"WARNING: Pass 1 failed: {e.stderr}. Retrying without subtitles.")
-        pass1_command = [ffmpeg_path] + hw_accel_args + ["-v", "error", "-i", input_file, "-c:v", codec, "-vsync", "1"] + preset_args + [crf_param, str(crf), "-pass", "1", "-passlogfile", passlog_prefix, "-map", "0:v", "-map", "0:a", "-c:a", "copy", "-sn", "-f", "mp4", os.devnull]
-        pass2_command = [ffmpeg_path] + hw_accel_args + ["-v", "error", "-i", input_file, "-c:v", codec, "-vsync", "1"] + preset_args + [crf_param, str(crf), "-pass", "2", "-passlogfile", passlog_prefix, "-map", "0:v", "-map", "0:a", "-c:a", "copy", "-sn", output_file, "-y"]
+        pass1_command = [ffmpeg_path] + hw_accel_args + ["-v", "error", "-fflags", "+genpts", "-i", input_file, "-c:v", codec, "-vsync", "1"] + preset_args + [crf_param, str(crf), "-pass", "1", "-passlogfile", passlog_prefix, "-map", "0:v:0", "-map", "0:a", "-c:a", "copy", "-sn", "-f", "mp4", os.devnull]
+        pass2_command = [ffmpeg_path] + hw_accel_args + ["-v", "error", "-fflags", "+genpts", "-i", input_file, "-c:v", codec, "-vsync", "1"] + preset_args + [crf_param, str(crf), "-pass", "2", "-passlogfile", passlog_prefix, "-map", "0:v:0", "-map", "0:a", "-c:a", "copy", "-sn", output_file, "-y"]
         if upscale:
             pass1_command += ["-vf", "scale=4k:-1"]
             pass2_command += ["-vf", "scale=4k:-1"]
         print(f"Retrying ffmpeg two-pass command (pass 1, no subtitles): {' '.join(pass1_command)}")
         try:
-            process = subprocess.run(pass1_command, capture_output=True, text=True, check=True)
+            process = subprocess.run(pass1_command, capture_output=True, text=True, encoding='utf-8', check=True)
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"ffmpeg pass 1 failed for {input_file} even without subtitles: {e.stderr}")
 
     print(f"Running ffmpeg two-pass command (pass 2): {' '.join(pass2_command)}")
     try:
-        process = subprocess.run(pass2_command, capture_output=True, text=True, check=True)
+        process = subprocess.run(pass2_command, capture_output=True, text=True, encoding='utf-8', check=True)
     except subprocess.CalledProcessError as e:
         print(f"WARNING: Pass 2 failed: {e.stderr}. Retrying without subtitles.")
         print(f"Retrying ffmpeg two-pass command (pass 2, no subtitles): {' '.join(pass2_command)}")
         try:
-            process = subprocess.run(pass2_command, capture_output=True, text=True, check=True)
+            process = subprocess.run(pass2_command, capture_output=True, text=True, encoding='utf-8', check=True)
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"ffmpeg pass 2 failed for {input_file} even without subtitles: {e.stderr}")
     finally:
-        # Clean up ffmpeg2pass logs
         for log_file in glob.glob(f"{passlog_prefix}*.log"):
             try:
                 os.remove(log_file)

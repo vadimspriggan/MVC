@@ -32,6 +32,8 @@ Magic Video Converter (MVC) is a Python-based tool for converting videos to AV1 
 ## Future Plans
 - AI upscale with Hugging Face.
 - GUI for "one-button" operation.
+- Add support .ts and fixes it ffmpeg -err_detect ignore_err -i input.ts -c copy fixed.ts
+
 
 ## License
 GNU GPL v3
